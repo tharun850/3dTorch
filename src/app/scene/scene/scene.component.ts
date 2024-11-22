@@ -22,69 +22,34 @@ export class SceneComponent implements AfterViewInit {
   private isTorchSelected = false;
   private returnAnimationInProgress = false;
   private torchCapacity: number = 3.5;
-  private resizeObserver: ResizeObserver;
+  private resizeObserver: ResizeObserver;  
+  private torchYPosition: number = 3;
+
+  private displayText: string = 'Hello Indu';
+
+  private loadingManager!: THREE.LoadingManager;
+  private loadingScreen!: HTMLDivElement;
+
+  private readonly TORCH_COLOR = 0xff9900; // Orange-red color
 
 
   constructor() { 
     this.resizeObserver = new ResizeObserver(this.onWindowResize.bind(this));
+    this.setupLoadingManager();
   }
 
   ngAfterViewInit() {
     setTimeout(() => {
       this.initScene();
       this.createResponsiveText();
-      // this.addCanvasStyles();
-      this.createTorch();
-      this.setupMouseEvents();
+      this.addCanvasStyles();
       this.animate();
+      this.setupMouseEvents();
       // Observe canvas element for size changes
       this.resizeObserver.observe(this.canvasRef.nativeElement);
     });
   }
 
-  
-
-  // private createTorch() {
-  //   // Create a group to hold torch parts
-  //   this.torch = new THREE.Group();
-
-  //   // Create torch handle (cylinder)
-  //   const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.5, 32);
-  //   const handleMaterial = new THREE.MeshStandardMaterial({
-  //     color: 0x4a4a4a,
-  //     metalness: 0.7,
-  //     roughness: 0.3
-  //   });
-  //   const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-
-  //   // Create torch head (cone)
-  //   const headGeometry = new THREE.ConeGeometry(0.2, 0.3, 32);
-  //   const headMaterial = new THREE.MeshStandardMaterial({
-  //     color: 0x666666,
-  //     metalness: 0.8,
-  //     roughness: 0.2,
-  //     emissive: 0xff9900,
-  //     emissiveIntensity: 0.5
-  //   });
-  //   const head = new THREE.Mesh(headGeometry, headMaterial);
-  //   head.position.y = 0.4;
-
-  //   // Add parts to torch group
-  //   this.torch.add(handle);
-  //   this.torch.add(head);
-
-  //   // Position torch at the top of the scene
-  //   this.torch.position.set(0, 3, 0);
-  //   this.torch.rotation.x = Math.PI / 4; // Tilt the torch
-
-  //   // Add torch to scene
-  //   this.scene.add(this.torch);
-
-  //   // Position spotlight relative to torch
-  //   this.spotLight.position.copy(this.torch.position);
-  //   this.spotLight.target.position.set(0, 0, 0);
-  //   this.scene.add(this.spotLight.target);
-  // }
 
   private createTorch() {
 
@@ -195,16 +160,11 @@ export class SceneComponent implements AfterViewInit {
     this.torch.add(createGlow());
 
     // Position torch at the top of the scene
-    this.torch.position.set(0, 2, 0);
+    this.torch.position.set(0, this.torchYPosition, 0);
     this.torch.rotation.x = Math.PI / 4;
 
     // Add torch to scene
     this.scene.add(this.torch);
-
-    // Position spotlight relative to torch
-    this.spotLight.position.copy(this.torch.position);
-    this.spotLight.target.position.set(0, 0, 0);
-    this.scene.add(this.spotLight.target);
 
     // Add animation for flame and glow
     const animateFlame = () => {
@@ -233,6 +193,10 @@ export class SceneComponent implements AfterViewInit {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x000000);
 
+    // Add ambient light with very low intensity
+    const ambientLight = new THREE.AmbientLight(0x000000, 0.05);
+    this.scene.add(ambientLight);
+
     // Camera setup with responsive position
     this.camera = new THREE.PerspectiveCamera(
         75,
@@ -250,35 +214,57 @@ export class SceneComponent implements AfterViewInit {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+    this.createBackground();
+    this.createTorch();
+
     // Add responsive spotlight
     this.setupResponsiveSpotlight();
 }
+    private setupResponsiveSpotlight() {
+    const width = window.innerWidth;
 
-private setupResponsiveSpotlight() {
-  const width = window.innerWidth;
-  
-  this.spotLight = new THREE.SpotLight(0xffffff, 3);
-  
-  if (width < 768) { // Mobile
+    
+    this.spotLight = new THREE.SpotLight(this.TORCH_COLOR, 3);
+    
+    if (width < 768) { // Mobile
       this.spotLight.angle = Math.PI / 5;
       this.spotLight.distance = 12;
       this.spotLight.intensity = 4;
-  } else if (width < 1024) { // Tablet
+    } else if (width < 1024) { // Tablet
       this.spotLight.angle = Math.PI / 6;
       this.spotLight.distance = 15;
       this.spotLight.intensity = 3.5;
-  } else { // Desktop
+    } else { // Desktop
       this.spotLight.angle = Math.PI / 7;
-      this.spotLight.distance = 18;
-      this.spotLight.intensity = 3;
-  }
-
-  this.spotLight.penumbra = 0.2;
-  this.spotLight.decay = 1.5;
+      this.spotLight.distance = 15;
+      this.spotLight.intensity = 5;
+    }
   
-  this.scene.add(this.spotLight);
-  this.scene.add(this.spotLight.target);
-}
+    // Enhance spotlight parameters
+    this.spotLight.penumbra = 0.3;
+    this.spotLight.decay = 2;
+    this.spotLight.castShadow = true;
+    
+    // Add shadow parameters
+    this.spotLight.shadow.bias = -0.0001;
+    this.spotLight.shadow.mapSize.width = 1024;
+    this.spotLight.shadow.mapSize.height = 1024;
+    this.spotLight.shadow.camera.near = 0.5;
+    this.spotLight.shadow.camera.far = 20;
+    
+  
+    this.scene.add(this.spotLight);
+    // Position spotlight relative to torch
+    this.spotLight.position.copy(this.torch.position);
+    this.spotLight.target.position.set(this.torch.position.x, this.torch.position.y, 50);
+    this.scene.add(this.spotLight.target);
+
+  
+    // Enable shadow rendering
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // this.backgroundMesh.receiveShadow = true;
+  }
 
 private addCanvasStyles() {
   const canvas = this.canvasRef.nativeElement;
@@ -289,185 +275,6 @@ private addCanvasStyles() {
 }
 
 
-
-  // private initScene() {
-  //   // Scene setup
-  //   this.scene = new THREE.Scene();
-  //   this.scene.background = new THREE.Color(0x000000);
-
-  //   // Camera setup
-  //   this.camera = new THREE.PerspectiveCamera(
-  //     75,
-  //     window.innerWidth / window.innerHeight,
-  //     0.1,
-  //     1000
-  //   );
-  //   this.camera.position.z = 7;
-
-  //   // Renderer setup
-  //   this.renderer = new THREE.WebGLRenderer({
-  //     canvas: this.canvasRef.nativeElement,
-  //     antialias: true
-  //   });
-  //   this.renderer.setSize(window.innerWidth, window.innerHeight);
-  //   this.renderer.setPixelRatio(window.devicePixelRatio);
-
-  //   // Add spotlight
-  //   this.spotLight = new THREE.SpotLight(0xffffff, 3);
-  //   this.spotLight.angle = Math.PI / 6;
-  //   this.spotLight.penumbra = 0.2;
-  //   this.spotLight.decay = 1.5;
-  //   this.spotLight.distance = 15;
-  //   this.scene.add(this.spotLight);
-
-  //   // Add very dim ambient light
-  //   const ambientLight = new THREE.AmbientLight(0x111111, 0.2);
-  //   this.scene.add(ambientLight);
-
-  //   const torchLight = new THREE.PointLight(0x666666, 0.5);
-  //   torchLight.position.set(0, 3, 0);
-  //   this.scene.add(torchLight);
-
-
-
-  //   // Create text
-  //   const loader = new FontLoader();
-  //   loader.load('assets/fonts/helvetiker_regular.typeface.json', (font) => {
-  //     const textGeometry = new TextGeometry('Hidden Message', {
-  //       font: font,
-  //       size: 1,
-  //       depth: 0.1,
-  //     });
-
-  //     const material = new THREE.MeshStandardMaterial({
-  //       color: 0xffffff,
-  //       metalness: 0.2,
-  //       roughness: 0.4
-  //     });
-
-  //     this.textMesh = new THREE.Mesh(textGeometry, material);
-  //     textGeometry.center();
-  //     this.scene.add(this.textMesh);
-  //   });
-
-  //   // Handle window resize
-  //   window.addEventListener('resize', () => this.onWindowResize());
-  // }
-
-  // private setupMouseEvents() {
-  //   window.addEventListener('mousemove', (event) => {
-  //     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  //     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  //     if (this.isTorchSelected) {
-  //       // Update torch and spotlight position
-  //       const vector = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
-  //       vector.unproject(this.camera);
-  //       const dir = vector.sub(this.camera.position).normalize();
-  //       const distance = -this.camera.position.z / dir.z;
-  //       const pos = this.camera.position.clone().add(dir.multiplyScalar(distance));
-
-  //       // Update torch position
-  //       this.torch.position.copy(new THREE.Vector3(pos.x, pos.y, 3));
-  //       this.torch.lookAt(pos.x, pos.y, 0);
-
-  //       // Update spotlight position
-  //       this.spotLight.position.copy(this.torch.position);
-  //       this.spotLight.target.position.set(pos.x, pos.y, 0);
-  //     }
-  //   });
-
-  //   window.addEventListener('click', (event) => {
-  //     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  //     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  //     this.raycaster.setFromCamera(this.mouse, this.camera);
-  //     const intersects = this.raycaster.intersectObject(this.torch, true);
-
-  //     if (intersects.length > 0) {
-  //       this.isTorchSelected = !this.isTorchSelected;
-  //       if (!this.isTorchSelected) {
-  //         // Reset torch position when deselected
-  //         this.torch.position.set(0, 3, 0);
-  //         this.torch.rotation.x = Math.PI / 4;
-  //         this.spotLight.position.copy(this.torch.position);
-  //         this.spotLight.target.position.set(0, 0, 0);
-  //       }
-  //     }
-  //   });
-  // }
-
-  // private setupMouseEvents() {
-  //   let startPosition = new THREE.Vector3();
-  //   let startRotation = new THREE.Euler();
-
-  //   const returnToOriginal = () => {
-  //     if (!this.returnAnimationInProgress) return;
-
-  //     const originalPosition = new THREE.Vector3(0, 3, 0);
-  //     const originalRotation = new THREE.Euler(Math.PI / 4, 0, 0);
-
-  //     // Interpolate position
-  //     this.torch.position.lerp(originalPosition, 0.1);
-
-  //     // Update spotlight
-  //     this.spotLight.position.copy(this.torch.position);
-  //     this.spotLight.target.position.set(0, 0, 0);
-
-  //     // Check if we're close enough to the target
-  //     if (this.torch.position.distanceTo(originalPosition) < 1) {
-  //       this.torch.position.copy(originalPosition);
-  //       this.torch.rotation.copy(originalRotation);
-  //       this.returnAnimationInProgress = false;
-  //     } else {
-  //       requestAnimationFrame(returnToOriginal);
-  //     }
-  //   };
-
-  //   window.addEventListener('click', (event) => {
-  //     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  //     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-  //     this.raycaster.setFromCamera(this.mouse, this.camera);
-  //     const intersects = this.raycaster.intersectObject(this.torch, true);
-
-  //     if (intersects.length > 0) {
-  //       this.isTorchSelected = !this.isTorchSelected;
-
-  //       // Start return animation
-  //       this.returnAnimationInProgress = true;
-  //       startPosition.copy(this.torch.position);
-  //       startRotation.copy(this.torch.rotation);
-  //       returnToOriginal();
-  //     }
-  //   });
-
-  //   window.addEventListener('mousemove', (event) => {
-  //     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-  //     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-   
-  //       // Update torch and spotlight position
-  //       this.upadateTorch();
-      
-  //   });
-
-  //   window.addEventListener('wheel', (event) => {
-
-  //     if (this.isTorchSelected) {
-  //       if (event.deltaY > 0) {
-  //         this.torchCapacity = Math.min(this.torchCapacity + 0.1, 5.5);
-  //         this.upadateTorch();
-  //       }
-  //       else if (event.deltaY < 0) {
-  //         this.torchCapacity = Math.max(this.torchCapacity - 0.1, 0.5);
-  //         this.upadateTorch();
-  //       }
-  //     }
-  //   });
-  // }
-
-
-
   private setupMouseEvents() {
     let startPosition = new THREE.Vector3();
     let startRotation = new THREE.Euler();
@@ -476,24 +283,14 @@ private addCanvasStyles() {
     const returnToOriginal = () => {
         if (!this.returnAnimationInProgress) return;
 
-        const originalPosition = new THREE.Vector3(0, 2, 0);
-        const originalRotation = new THREE.Euler(Math.PI / 4, 0, 0);
-
+        const originalPosition = new THREE.Vector3(0, this.torchYPosition, 0);
         // Interpolate position
         this.torch.position.lerp(originalPosition, 0.1);
 
         // Update spotlight
         this.spotLight.position.copy(this.torch.position);
-        this.spotLight.target.position.set(0, 0, 0);
-
-        // Check if we're close enough to the target
-        if (this.torch.position.distanceTo(originalPosition) < 0.5) {
-            this.torch.position.copy(originalPosition);
-            this.torch.rotation.copy(originalRotation);
-            this.returnAnimationInProgress = false;
-        } else {
-            requestAnimationFrame(returnToOriginal);
-        }
+        this.spotLight.target.position.set(this.torch.position.x, this.torch.position.y, 50);
+        requestAnimationFrame(returnToOriginal);
     };
 
     // Convert screen coordinates to normalized device coordinates
@@ -506,7 +303,6 @@ private addCanvasStyles() {
     // Update torch position based on coordinates
     const updateTorchPosition = (coords: THREE.Vector2) => {
         if (!this.isTorchSelected || !isDragging) return;
-
         const vector = new THREE.Vector3(coords.x, coords.y, 0.5);
         vector.unproject(this.camera);
         const dir = vector.sub(this.camera.position).normalize();
@@ -587,16 +383,14 @@ private addCanvasStyles() {
 
     // Handle wheel/pinch zoom for torch distance
     window.addEventListener('wheel', (event) => {
-        if (this.isTorchSelected) {
+
             if (event.deltaY > 0) {
                 this.torchCapacity = Math.min(this.torchCapacity + 0.1, 5.5);
-                this.updateTorch();
             }
             else if (event.deltaY < 0) {
                 this.torchCapacity = Math.max(this.torchCapacity - 0.1, 0.5);
-                this.updateTorch();
             }
-        }
+        
     });
 
     // Handle touch pinch zoom
@@ -621,11 +415,10 @@ private addCanvasStyles() {
             const delta = initialPinchDistance - currentDistance;
             if (Math.abs(delta) > 10) { // Threshold to prevent tiny adjustments
                 if (delta > 0) {
-                    this.torchCapacity = Math.min(this.torchCapacity + 0.1, 5.5);
+                    this.torchCapacity = Math.min(this.torchCapacity + 0.1, 4.5);
                 } else {
                     this.torchCapacity = Math.max(this.torchCapacity - 0.1, 0.5);
                 }
-                this.updateTorch();
                 initialPinchDistance = currentDistance;
             }
         }
@@ -639,23 +432,6 @@ private addCanvasStyles() {
     window.addEventListener('resize', () => this.onWindowResize());
 }
 
-  private updateTorch(){
-    if (this.isTorchSelected) {
-        const vector = new THREE.Vector3(this.mouse.x, this.mouse.y, 0.5);
-        vector.unproject(this.camera);
-        const dir = vector.sub(this.camera.position).normalize();
-        const distance = -this.camera.position.z / dir.z;
-        const pos = this.camera.position.clone().add(dir.multiplyScalar(distance));
-
-        // Update torch position
-        this.torch.position.copy(new THREE.Vector3(pos.x, pos.y, this.torchCapacity));
-        this.torch.lookAt(pos.x, pos.y, 0);
-
-        // Update spotlight position
-        this.spotLight.position.copy(this.torch.position);
-        this.spotLight.target.position.set(pos.x, pos.y, 0);
-    }
-  }
   
   private onWindowResize = () => {
     if (!this.camera || !this.renderer) return;
@@ -667,6 +443,14 @@ private addCanvasStyles() {
     // Update renderer
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    if (this.backgroundMesh) {
+      const fov = this.camera.fov * Math.PI / 180;
+      const frustumHeight = 2.0 * Math.abs(-2) * Math.tan(fov / 2);
+      const frustumWidth = frustumHeight * this.camera.aspect;
+      
+      this.backgroundMesh.scale.set(frustumWidth, frustumHeight, 1);
+    }
 
     // Update text
     this.createResponsiveText();
@@ -689,61 +473,14 @@ private updateCameraPosition() {
   this.camera.updateProjectionMatrix();
 }
 
-  // private onWindowResize() {
-  //   this.camera.aspect = window.innerWidth / window.innerHeight;
-  //   this.camera.updateProjectionMatrix();
-  //   this.renderer.setSize(window.innerWidth, window.innerHeight);
-  // }
-
-  // private animate() {
-  //   requestAnimationFrame(() => this.animate());
-
-  //   // Add subtle torch movement when hanging
-  //   if (!this.isTorchSelected) {
-  //     const time = Date.now() * 0.001;
-  //     this.torch.position.x = Math.sin(time) * 0.1;
-  //   }
-
-  //   this.renderer.render(this.scene, this.camera);
-  // }
-
-  // private animate() {
-  //   requestAnimationFrame(() => this.animate());
-
-  //   // Add subtle torch movement when hanging and not selected
-  //   if (!this.isTorchSelected && !this.returnAnimationInProgress) {
-  //     const time = Date.now() * 0.001;
-  //     this.torch.position.x = Math.sin(time) * 0.1;
-  //   }
-
-  //   this.renderer.render(this.scene, this.camera);
-  // }
-
-
-
   private animate() {
     requestAnimationFrame(() => this.animate());
-
-    // Add subtle torch movement when hanging and not selected
-    if (!this.isTorchSelected && !this.returnAnimationInProgress) {
-      const time = Date.now() * 0.0005;
-      this.torch.position.x = (Math.sin(time) * 2 ) ;
-      this.spotLight.position.copy(this.torch.position);
-    }
+    this.animateTorchLight();
 
     this.renderer.render(this.scene, this.camera);
   }
 
-  // ngOnDestroy() {
-  //   // Cleanup resources
-  //   this.renderer.dispose();
-  //   this.scene.traverse((object) => {
-  //     if (object instanceof THREE.Mesh) {
-  //       object.geometry.dispose();
-  //       object.material.dispose();
-  //     }
-  //   });
-  // }
+  
 
   ngOnDestroy() {
     // Cleanup
@@ -782,15 +519,15 @@ private updateCameraPosition() {
           if (width < 768) { // Mobile
               textSize = 0.3;
               textHeight = 0.05;
-              message = 'Hidden\nMessage'; // Break into multiple lines for mobile
+              message = this.displayText; // Break into multiple lines for mobile
           } else if (width < 1024) { // Tablet
               textSize = 0.4;
               textHeight = 0.08;
-              message = 'Hidden Message';
+              message = this.displayText;
           } else { // Desktop
               textSize = 0.7;
               textHeight = 0.1;
-              message = 'Hidden Message';
+              message = this.displayText;
           }
   
           // Create text geometry with responsive parameters
@@ -822,15 +559,99 @@ private updateCameraPosition() {
           const textHeight1 = textGeometry.boundingBox!.max.y - textGeometry.boundingBox!.min.y;
           
           this.textMesh.position.x = -textWidth / 2;
-          this.textMesh.position.y = -textHeight1 / 2;
-  
+          this.textMesh.position.y = textHeight1 / 2;
+
           // Add to scene
           this.scene.add(this.textMesh);
       });
   }
   
 
+    // Add this property to your class
+  private backgroundMesh!: THREE.Mesh;
+  
+  // Add this method to create the background
+  private createBackground() {
+    // Load the texture
+    const textureLoader = new THREE.TextureLoader(this.loadingManager);
+    textureLoader.load('assets/textures/bkg.jpg', (texture) => {
+      // Calculate aspect ratio to cover the entire scene
+      const imageAspect = texture.image.width / texture.image.height;
+      const planeGeometry = new THREE.PlaneGeometry(20* imageAspect, 20);
+      
+      // Create material with the texture
+      const planeMaterial = new THREE.MeshStandardMaterial({
+        map: texture,
+        transparent: true,
+      });
+  
+      // Create mesh and position it behind everything
+      this.backgroundMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+      this.backgroundMesh.position.z = -0.5 ;
+      this.scene.add(this.backgroundMesh);
+    });
+  }
+  
+  private setupLoadingManager() {
+    // Create loading screen
+    this.loadingScreen = document.createElement('div');
+    this.loadingScreen.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    `;
+  
+    // Add loading animation
+    const spinner = document.createElement('div');
+    spinner.style.cssText = `
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    `;
+  
+    // Add keyframe animation
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  
+    this.loadingScreen.appendChild(spinner);
+    document.body.appendChild(this.loadingScreen);
+  
+    // Setup loading manager
+    this.loadingManager = new THREE.LoadingManager();
+    
+  
+    this.loadingManager.onLoad = () => {
+      this.loadingScreen.style.display = 'none';
+    };
+  }
 
+  private animateTorchLight() {
 
+  
+    const flickerAngle = () => {
+      const baseAngle = Math.PI / 7; // Base angle
+      const flicker = (Math.random() * 0.2 - 0.05) * baseAngle; // Small angle variation
+      return baseAngle + flicker;
+    };
+    // this.spotLight.intensity = flickerIntensity();
+    this.spotLight.angle = flickerAngle();
+  }
+  
 
 }
