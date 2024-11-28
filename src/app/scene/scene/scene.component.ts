@@ -25,7 +25,7 @@ export class SceneComponent implements AfterViewInit {
   private resizeObserver: ResizeObserver;  
   private torchYPosition: number = 3;
 
-  private displayText: string = 'Hello Indu';
+  private displayText: string = 'Hidden Message';
 
   private loadingManager!: THREE.LoadingManager;
   private loadingScreen!: HTMLDivElement;
